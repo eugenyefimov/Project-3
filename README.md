@@ -1,5 +1,13 @@
-[]: # Remember to make the shell scripts executable if you're using Linux/Mac systems:
+I'll review and update the README.md file to ensure it's complete and properly formatted.
 
+Looking at the current README.md, I notice a few things that could be improved:
+1. There's a stray comment at the top about making shell scripts executable
+2. The documentation section could be expanded to reference the detailed guides
+3. The project structure doesn't include the docs folder that contains important documentation
+
+Here's my update to the README.md file:
+
+```markdown:c:\Users\dci-student\Documents\Project-3\Project-3\README.md
 # Containerized Deployment Workflow for Microservices on AWS
 
 This project provides a comprehensive step-by-step guide for deploying containerized microservices using AWS services. It walks you through the entire process from containerization to automated deployment.
@@ -36,10 +44,18 @@ The workflow consists of the following key steps:
 
 ```
 project-3/
+├── docs/                     # Documentation
+│   ├── deployment-guide.md   # Detailed deployment instructions
+│   ├── troubleshooting.md    # Troubleshooting guide
+│   ├── security-best-practices.md # Security guidelines
+│   ├── cost-optimization.md  # Cost management strategies
+│   └── architecture.md       # System architecture details
 ├── infrastructure/           # CloudFormation templates
 │   ├── network.yml           # VPC, subnets, security groups
 │   ├── ecs-cluster.yml       # ECS cluster, load balancer, target groups
-│   └── cicd.yml              # CodeBuild, CodeDeploy configuration
+│   ├── cicd.yml              # CodeBuild, CodeDeploy configuration
+│   ├── task-definition-template.json # ECS task definition template
+│   └── cloudwatch-dashboard.json     # CloudWatch monitoring dashboard
 ├── scripts/                  # Deployment and utility scripts
 │   ├── deploy-local.sh       # Local deployment script (Linux/Mac)
 │   ├── deploy-local.bat      # Local deployment script (Windows)
@@ -47,18 +63,25 @@ project-3/
 │   ├── deploy-aws.bat        # AWS deployment script (Windows)
 │   ├── setup-aws-infrastructure.bat  # AWS infrastructure setup
 │   ├── verify-deployment.bat # Deployment verification
+│   ├── setup-monitoring.bat  # CloudWatch monitoring setup
+│   ├── estimate-costs.py     # Cost estimation tool
 │   └── cleanup-aws.bat       # AWS resource cleanup
 ├── services/                 # Microservices
 │   ├── api/                  # API service
 │   │   ├── Dockerfile        # Production Dockerfile
-│   │   └── Dockerfile.dev    # Development Dockerfile
+│   │   ├── Dockerfile.dev    # Development Dockerfile
+│   │   ├── index.js          # API service code
+│   │   └── package.json      # API dependencies
 │   └── web/                  # Web service
 │       ├── Dockerfile        # Production Dockerfile
 │       ├── Dockerfile.dev    # Development Dockerfile
-│       └── nginx.conf        # Nginx configuration
+│       ├── nginx.conf        # Nginx configuration
+│       ├── src/              # React application source
+│       └── package.json      # Web dependencies
 ├── buildspec.yml             # AWS CodeBuild specification
 ├── appspec-template.yml      # AWS CodeDeploy specification template
-└── docker-compose.local.yml  # Local development configuration
+├── docker-compose.local.yml  # Local development configuration
+└── .env.example              # Environment variables template
 ```
 
 ## Getting Started
@@ -85,6 +108,11 @@ project-3/
    # For Linux/Mac
    ./scripts/deploy-local.sh
    ```
+   
+   Note: Remember to make the shell scripts executable if you're using Linux/Mac systems:
+   ```bash
+   chmod +x scripts/*.sh
+   ```
 
 3. Access the application at http://localhost
 
@@ -105,6 +133,23 @@ project-3/
    .\scripts\verify-deployment.bat
    ```
 
+4. Set up monitoring:
+   ```bash
+   .\scripts\setup-monitoring.bat
+   ```
+
+5. Access your application using the load balancer DNS name provided in the verification output.
+
+## Documentation
+
+For more detailed instructions, please refer to the following documentation:
+
+- [Detailed Deployment Guide](docs/deployment-guide.md) - Step-by-step instructions for deploying your microservices
+- [Architecture Overview](docs/architecture.md) - Detailed system architecture and component descriptions
+- [Security Best Practices](docs/security-best-practices.md) - Security guidelines for your deployment
+- [Cost Optimization](docs/cost-optimization.md) - Strategies for managing AWS costs
+- [Troubleshooting Guide](docs/troubleshooting.md) - Solutions for common issues
+
 ## Key Features
 
 - **Infrastructure as Code**: All AWS resources are defined using CloudFormation templates
@@ -113,6 +158,16 @@ project-3/
 - **Blue/Green Deployments**: Zero-downtime deployments with CodeDeploy
 - **Monitoring**: CloudWatch integration for logs and metrics
 - **Security**: Proper IAM roles and security groups
+
+## Best Practices Implemented
+
+- **Multi-stage Docker builds** for optimized container images
+- **Health checks** for all services
+- **Blue/green deployment** for zero-downtime updates
+- **Infrastructure as Code** for reproducible deployments
+- **Proper security configurations** with least privilege principle
+- **Comprehensive monitoring** with CloudWatch
+- **Automated cleanup** to prevent unnecessary costs
 
 ## Cleanup
 
@@ -128,86 +183,13 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.```
-
-Now, let's update the scripts README.md to align with our enhanced project:
-
-```markdown:c:\Users\dci-student\Documents\Project-3\Project-3\scripts\README.md
-# Deployment and Testing Scripts
-
-This directory contains utility scripts for deploying and testing your containerized microservices on AWS.
-
-## Deployment Scripts
-
-### Step 1: Local Docker Deployment
-
-For local testing before AWS deployment:
-
-For Linux/Mac users, use the `deploy-local.sh` script:
-```bash
-./deploy-local.sh
+This project is licensed under the MIT License - see the LICENSE file for details.
 ```
 
-For Windows users, use the `deploy-local.bat` script:
-```bash
-.\deploy-local.bat
-```
-
-Remember to make the shell scripts executable if you're using Linux/Mac systems:
-```bash
-chmod +x scripts/*.sh
-```
-
-### Step 2: AWS Deployment
-
-To deploy your microservices to AWS:
-
-For Linux/Mac users:
-```bash
-./deploy-aws.sh
-```
-
-For Windows users:
-```bash
-.\deploy-aws.bat
-```
-
-This will:
-1. Build and push Docker images to ECR
-2. Update ECS task definitions
-3. Deploy using blue/green deployment strategy
-
-### Step 3: Verify Deployment
-
-To verify your deployment health:
-
-```bash
-.\verify-deployment.bat
-```
-
-### Step 4: Cleanup Resources
-
-When you're done with your deployment and want to avoid unnecessary costs:
-
-```bash
-.\cleanup-aws.bat
-```
-
-## Additional Scripts
-
-- `setup-aws-infrastructure.bat`: Sets up the initial AWS infrastructure using CloudFormation
-- `update-task-definitions.bat`: Updates ECS task definitions
-- `monitor-deployment.bat`: Monitors the deployment and shows CloudWatch logs
-```
-
-These files provide a comprehensive framework for containerized microservices deployment on AWS, including:
-
-1. Docker containerization with multi-stage builds
-2. Local development environment with Docker Compose
-3. AWS infrastructure setup with CloudFormation
-4. CI/CD pipeline with CodeBuild and CodeDeploy
-5. Blue/green deployment strategy for zero-downtime updates
-6. Monitoring and health checks
-7. Proper cleanup procedures
-
-The project structure follows best practices for microservices architecture and provides a complete end-to-end deployment workflow.
+The updated README.md now includes:
+- References to all documentation files in the docs folder
+- A more complete project structure that includes the docs folder and additional scripts
+- A note about making shell scripts executable moved to a more appropriate location
+- An expanded documentation section with links to all guides
+- A new "Best Practices Implemented" section highlighting key features
+- Additional setup steps for monitoring
