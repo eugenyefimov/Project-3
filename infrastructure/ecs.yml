@@ -1,0 +1,328 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'ECS resources for microservices application'
+
+Parameters:
+  VpcStackName:
+    Type: String
+    Description: Name of the VPC CloudFormation stack
+    Default: microservices-network
+
+  EcrStackName:
+    Type: String
+    Description: Name of the ECR CloudFormation stack
+    Default: microservices-ecr
+
+Resources:
+  # ECS Cluster
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: microservices-cluster
+      CapacityProviders:
+        - FARGATE
+        - FARGATE_SPOT
+      DefaultCapacityProviderStrategy:
+        - CapacityProvider: FARGATE
+          Weight: 1
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+
+  # ECS Task Execution Role
+  ECSTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+        - arn:aws:iam::aws:policy/AmazonECR-FullAccess
+
+  # ECS Task Role
+  ECSTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
+        - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+        - arn:aws:iam::aws:policy/AmazonSQSFullAccess
+
+  # Application Load Balancer
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: microservices-alb
+      Scheme: internet-facing
+      LoadBalancerAttributes:
+        - Key: idle_timeout.timeout_seconds
+          Value: '60'
+      Subnets:
+        - Fn::ImportValue: !Sub "${VpcStackName}-PublicSubnet1"
+        - Fn::ImportValue: !Sub "${VpcStackName}-PublicSubnet2"
+      SecurityGroups:
+        - Fn::ImportValue: !Sub "${VpcStackName}-ECSSecurityGroup"
+
+  # ALB Listener
+  LoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: fixed-response
+          FixedResponseConfig:
+            ContentType: text/plain
+            MessageBody: 'Welcome to Microservices Application'
+            StatusCode: '200'
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+  # Service A Task Definition
+  ServiceATaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: service-a
+      Cpu: '256'
+      Memory: '512'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt ECSTaskRole.Arn
+      ContainerDefinitions:
+        - Name: service-a
+          Image: !Join
+            - ''
+            - - Fn::ImportValue: !Sub "${EcrStackName}-ServiceARepositoryUri"
+              - ':latest'
+          Essential: true
+          PortMappings:
+            - ContainerPort: 3000
+              HostPort: 3000
+              Protocol: tcp
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref ServiceALogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: service-a
+          Environment:
+            - Name: SERVICE_B_URL
+              Value: !Join
+                - ''
+                - - 'http://'
+                  - !GetAtt ServiceBService.LoadBalancer.DNSName
+                  - ':5000'
+
+  # Service B Task Definition
+  ServiceBTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: service-b
+      Cpu: '256'
+      Memory: '512'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt ECSTaskRole.Arn
+      ContainerDefinitions:
+        - Name: service-b
+          Image: !Join
+            - ''
+            - - Fn::ImportValue: !Sub "${EcrStackName}-ServiceBRepositoryUri"
+              - ':latest'
+          Essential: true
+          PortMappings:
+            - ContainerPort: 5000
+              HostPort: 5000
+              Protocol: tcp
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref ServiceBLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: service-b
+
+  # CloudWatch Log Groups
+  ServiceALogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/service-a
+      RetentionInDays: 30
+
+  ServiceBLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/service-b
+      RetentionInDays: 30
+
+  # Target Groups
+  ServiceATargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: service-a-tg
+      Port: 3000
+      Protocol: HTTP
+      TargetType: ip
+      VpcId:
+        Fn::ImportValue: !Sub "${VpcStackName}-VpcId"
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 3
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: '30'
+
+  ServiceBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: service-b-tg
+      Port: 5000
+      Protocol: HTTP
+      TargetType: ip
+      VpcId:
+        Fn::ImportValue: !Sub "${VpcStackName}-VpcId"
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 3
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: '30'
+
+  # ALB Listener Rules
+  ServiceAListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref ServiceATargetGroup
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - /service-a*
+      ListenerArn: !Ref LoadBalancerListener
+      Priority: 1
+
+  ServiceBListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref ServiceBTargetGroup
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - /service-b*
+      ListenerArn: !Ref LoadBalancerListener
+      Priority: 2
+
+  # ECS Services
+  ServiceAService:
+    Type: AWS::ECS::Service
+    DependsOn: ServiceAListenerRule
+    Properties:
+      ServiceName: service-a
+      Cluster: !Ref ECSCluster
+      TaskDefinition: !Ref ServiceATaskDefinition
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+      DesiredCount: 2
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - Fn::ImportValue: !Sub "${VpcStackName}-ECSSecurityGroup"
+          Subnets:
+            - Fn::ImportValue: !Sub "${VpcStackName}-PrivateSubnet1"
+            - Fn::ImportValue: !Sub "${VpcStackName}-PrivateSubnet2"
+      LoadBalancers:
+        - ContainerName: service-a
+          ContainerPort: 3000
+          TargetGroupArn: !Ref ServiceATargetGroup
+      DeploymentController:
+        Type: ECS
+      EnableECSManagedTags: true
+      PropagateTags: SERVICE
+
+  ServiceBService:
+    Type: AWS::ECS::Service
+    DependsOn: ServiceBListenerRule
+    Properties:
+      ServiceName: service-b
+      Cluster: !Ref ECSCluster
+      TaskDefinition: !Ref ServiceBTaskDefinition
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+      DesiredCount: 2
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - Fn::ImportValue: !Sub "${VpcStackName}-ECSSecurityGroup"
+          Subnets:
+            - Fn::ImportValue: !Sub "${VpcStackName}-PrivateSubnet1"
+            - Fn::ImportValue: !Sub "${VpcStackName}-PrivateSubnet2"
+      LoadBalancers:
+        - ContainerName: service-b
+          ContainerPort: 5000
+          TargetGroupArn: !Ref ServiceBTargetGroup
+      DeploymentController:
+        Type: ECS
+      EnableECSManagedTags: true
+      PropagateTags: SERVICE
+
+Outputs:
+  ClusterName:
+    Description: The name of the ECS cluster
+    Value: !Ref ECSCluster
+    Export: 
+  ClusterName:
+    Description: The name of the ECS cluster
+    Value: !Ref ECSCluster
+    Export:
+      Name: !Sub "${AWS::StackName}-ClusterName"
+
+  LoadBalancerDNS:
+    Description: The DNS name of the load balancer
+    Value: !GetAtt LoadBalancer.DNSName
+    Export:
+      Name: !Sub "${AWS::StackName}-LoadBalancerDNS"
+
+  ServiceATaskDefinitionArn:
+    Description: The ARN of the Service A task definition
+    Value: !Ref ServiceATaskDefinition
+    Export:
+      Name: !Sub "${AWS::StackName}-ServiceATaskDefinitionArn"
+
+  ServiceBTaskDefinitionArn:
+    Description: The ARN of the Service B task definition
+    Value: !Ref ServiceBTaskDefinition
+    Export:
+      Name: !Sub "${AWS::StackName}-ServiceBTaskDefinitionArn"
+

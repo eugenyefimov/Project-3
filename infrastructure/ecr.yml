@@ -1,0 +1,111 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'ECR repositories for microservices application'
+
+Resources:
+  # ECR Repository for Service A
+  ServiceARepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: service-a
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Keep only the last 10 images",
+                "selection": {
+                  "tagStatus": "any",
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 10
+                },
+                "action": {
+                  "type": "expire"
+                }
+              }
+            ]
+          }
+      RepositoryPolicyText:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+
+  # ECR Repository for Service B
+  ServiceBRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: service-b
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Keep only the last 10 images",
+                "selection": {
+                  "tagStatus": "any",
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 10
+                },
+                "action": {
+                  "type": "expire"
+                }
+              }
+            ]
+          }
+      RepositoryPolicyText:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+
+Outputs:
+  ServiceARepositoryUri:
+    Description: The URI of the Service A repository
+    Value: !GetAtt ServiceARepository.RepositoryUri
+    Export:
+      Name: !Sub "${AWS::StackName}-ServiceARepositoryUri"
+
+  ServiceBRepositoryUri:
+    Description: The URI of the Service B repository
+    Value: !GetAtt ServiceBRepository.RepositoryUri
+    Export:
+      Name: !Sub "${AWS::StackName}-ServiceBRepositoryUri"
+
+  ServiceARepositoryName:
+    Description: The name of the Service A repository
+    Value: !Ref ServiceARepository
+    Export:
+      Name: !Sub "${AWS::StackName}-ServiceARepositoryName"
+
+  ServiceBRepositoryName:
+    Description: The name of the Service B repository
+    Value: !Ref ServiceBRepository
+    Export:
+      Name: !Sub "${AWS::StackName}-ServiceBRepositoryName"
+

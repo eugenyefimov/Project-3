@@ -1,0 +1,112 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CodeDeploy resources for microservices application'
+
+Parameters:
+  EcsStackName:
+    Type: String
+    Description: Name of the ECS CloudFormation stack
+    Default: microservices-ecs
+
+Resources:
+  # CodeDeploy Service Role
+  CodeDeployServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codedeploy.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSCodeDeployRoleForECS
+
+  # CodeDeploy Application
+  CodeDeployApplication:
+    Type: AWS::CodeDeploy::Application
+    Properties:
+      ApplicationName: microservices-app
+      ComputePlatform: ECS
+
+  # CodeDeploy Deployment Group for Service A
+  ServiceADeploymentGroup:
+    Type: AWS::CodeDeploy::DeploymentGroup
+    Properties:
+      ApplicationName: !Ref CodeDeployApplication
+      DeploymentGroupName: service-a-deployment-group
+      DeploymentConfigName: CodeDeployDefault.ECSAllAtOnce
+      ServiceRoleArn: !GetAtt CodeDeployServiceRole.Arn
+      ECSServices:
+        - ClusterName:
+            Fn::ImportValue: !Sub "${EcsStackName}-ClusterName"
+          ServiceName: service-a
+      DeploymentStyle:
+        DeploymentType: BLUE_GREEN
+        DeploymentOption: WITH_TRAFFIC_CONTROL
+      BlueGreenDeploymentConfiguration:
+        DeploymentReadyOption:
+          ActionOnTimeout: CONTINUE_DEPLOYMENT
+          WaitTimeInMinutes: 0
+        TerminateBlueInstancesOnDeploymentSuccess:
+          Action: TERMINATE
+          TerminationWaitTimeInMinutes: 5
+      LoadBalancerInfo:
+        TargetGroupPairInfoList:
+          - ProdTrafficRoute:
+              ListenerArns:
+                - Fn::ImportValue: !Sub "${EcsStackName}-LoadBalancerListenerArn"
+            TargetGroups:
+              - Name:
+                  Fn::ImportValue: !Sub "${EcsStackName}-ServiceATargetGroupName"
+
+  # CodeDeploy Deployment Group for Service B
+  ServiceBDeploymentGroup:
+    Type: AWS::CodeDeploy::DeploymentGroup
+    Properties:
+      ApplicationName: !Ref CodeDeployApplication
+      DeploymentGroupName: service-b-deployment-group
+      DeploymentConfigName: CodeDeployDefault.ECSAllAtOnce
+      ServiceRoleArn: !GetAtt CodeDeployServiceRole.Arn
+      ECSServices:
+        - ClusterName:
+            Fn::ImportValue: !Sub "${EcsStackName}-ClusterName"
+          ServiceName: service-b
+      DeploymentStyle:
+        DeploymentType: BLUE_GREEN
+        DeploymentOption: WITH_TRAFFIC_CONTROL
+      BlueGreenDeploymentConfiguration:
+        DeploymentReadyOption:
+          ActionOnTimeout: CONTINUE_DEPLOYMENT
+          WaitTimeInMinutes: 0
+        TerminateBlueInstancesOnDeploymentSuccess:
+          Action: TERMINATE
+          TerminationWaitTimeInMinutes: 5
+      LoadBalancerInfo:
+        TargetGroupPairInfoList:
+          - ProdTrafficRoute:
+              ListenerArns:
+                - Fn::ImportValue: !Sub "${EcsStackName}-LoadBalancerListenerArn"
+            TargetGroups:
+              - Name:
+                  Fn::ImportValue: !Sub "${EcsStackName}-ServiceBTargetGroupName"
+
+Outputs:
+  CodeDeployApplicationName:
+    Description: The name of the CodeDeploy application
+    Value: !Ref CodeDeployApplication
+    Export:
+      Name: !Sub "${AWS::StackName}-CodeDeployApplicationName"
+
+  ServiceADeploymentGroupName:
+    Description: The name of the Service A deployment group
+    Value: !Ref ServiceADeploymentGroup
+    Export:
+      Name: !Sub "${AWS::StackName}-ServiceADeploymentGroupName"
+
+  ServiceBDeploymentGroupName:
+    Description: The name of the Service B deployment group
+    Value: !Ref ServiceBDeploymentGroup
+    Export:
+      Name: !Sub "${AWS::StackName}-ServiceBDeploymentGroupName"
+

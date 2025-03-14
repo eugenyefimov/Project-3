@@ -1,0 +1,58 @@
+version: 0.2
+
+phases:
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      - IMAGE_TAG=${COMMIT_HASH:=latest}
+      - echo Installing dependencies...
+      - apt-get update
+      - apt-get install -y jq
+  
+  build:
+    commands:
+      - echo Building the Docker images...
+      - cd docker/service-a
+      - docker build -t $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/service-a:$IMAGE_TAG -t $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/service-a:latest .
+      - cd ../service-b
+      - docker build -t $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/service-b:$IMAGE_TAG -t $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/service-b:latest .
+      - cd ../..
+  
+  post_build:
+    commands:
+      - echo Pushing the Docker images...
+      - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/service-a:$IMAGE_TAG
+      - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/service-a:latest
+      - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/service-b:$IMAGE_TAG
+      - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/service-b:latest
+      
+      - echo Updating ECS task definitions...
+      - aws ecs describe-task-definition --task-definition service-a --query taskDefinition > task-definition-a.json
+      - aws ecs describe-task-definition --task-definition service-b --query taskDefinition > task-definition-b.json
+      
+      - jq '.containerDefinitions[0].image = "'$AWS_ACCOUNT_ID'.dkr.ecr.'$AWS_DEFAULT_REGION'.amazonaws.com/service-a:'$IMAGE_TAG'"' task-definition-a.json > task-definition-a-new.json
+      - jq '.containerDefinitions[0].image = "'$AWS_ACCOUNT_ID'.dkr.ecr.'$AWS_DEFAULT_REGION'.amazonaws.com/service-b:'$IMAGE_TAG'"' task-definition-b.json > task-definition-b-new.json
+      
+      - aws ecs register-task-definition --family service-a --cli-input-json file://task-definition-a-new.json
+      - aws ecs register-task-definition --family service-b --cli-input-json file://task-definition-b-new.json
+      
+      - echo Creating appspec files...
+      - SERVICE_A_TASK_DEF=$(aws ecs describe-task-definition --task-definition service-a --query taskDefinition.taskDefinitionArn --output text)
+      - SERVICE_B_TASK_DEF=$(aws ecs describe-task-definition --task-definition service-b --query taskDefinition.taskDefinitionArn --output text)
+      
+      - echo '{"version":1,"Resources":[{"TargetService":{"Type":"AWS::ECS::Service","Properties":{"TaskDefinition":"'$SERVICE_A_TASK_DEF'","LoadBalancerInfo":{"ContainerName":"service-a","ContainerPort":3000}}}}]}' > appspec-a.json
+      - echo '{"version":1,"Resources":[{"TargetService":{"Type":"AWS::ECS::Service","Properties":{"TaskDefinition":"'$SERVICE_B_TASK_DEF'","LoadBalancerInfo":{"ContainerName":"service-b","ContainerPort":5000}}}}]}' > appspec-b.json
+      
+      - echo Build completed on `date`
+
+artifacts:
+  files:
+    - appspec-a.json
+    - appspec-b.json
+    - task-definition-a-new.json
+    - task-definition-b-new.json
+    - scripts/**/*
+  discard-paths: no
+

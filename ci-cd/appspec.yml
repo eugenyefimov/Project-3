@@ -1,0 +1,16 @@
+version: 0.0
+Resources:
+  - TargetService:
+      Type: AWS::ECS::Service
+      Properties:
+        TaskDefinition: <TASK_DEFINITION>
+        LoadBalancerInfo:
+          ContainerName: "service-a"
+          ContainerPort: 3000
+Hooks:
+  - BeforeInstall: "scripts/before_install.sh"
+  - AfterInstall: "scripts/after_install.sh"
+  - AfterAllowTestTraffic: "scripts/after_allow_test_traffic.sh"
+  - BeforeAllowTraffic: "scripts/before_allow_traffic.sh"
+  - AfterAllowTraffic: "scripts/after_allow_traffic.sh"
+
