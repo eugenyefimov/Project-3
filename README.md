@@ -1,13 +1,3 @@
-I'll review and update the README.md file to ensure it's complete and properly formatted.
-
-Looking at the current README.md, I notice a few things that could be improved:
-1. There's a stray comment at the top about making shell scripts executable
-2. The documentation section could be expanded to reference the detailed guides
-3. The project structure doesn't include the docs folder that contains important documentation
-
-Here's my update to the README.md file:
-
-```markdown:c:\Users\dci-student\Documents\Project-3\Project-3\README.md
 # Containerized Deployment Workflow for Microservices on AWS
 
 This project provides a comprehensive step-by-step guide for deploying containerized microservices using AWS services. It walks you through the entire process from containerization to automated deployment.
