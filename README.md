@@ -86,8 +86,8 @@ project-3/
 
 1. Clone this repository:
    ```bash
-   git clone https://github.com/yourusername/project-3.git
-   cd project-3
+   git clone https://github.com/eugenyefimov/Project-3.git
+   cd Project-3
    ```
 
 2. Run the local deployment script:
