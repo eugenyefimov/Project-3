@@ -1,12 +1,16 @@
 # Deployment and Testing Scripts
 
-This directory contains utility scripts for deploying and testing your microservices application.
+This directory contains utility scripts for deploying and testing your containerized microservices on AWS.
 
-## Step 1: Deploy the Application
+## Deployment Scripts
 
-For Linux/Mac users, use the `deploy.sh` script:
+### Step 1: Local Docker Deployment
+
+For local testing before AWS deployment:
+
+For Linux/Mac users, use the `deploy-local.sh` script:
 ```bash
-./deploy.sh
+./deploy-local.sh
 ```
 
 For Windows users, use the `deploy.bat` script:

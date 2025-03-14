@@ -1,0 +1,42 @@
+version: 0.2
+
+phases:
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      - IMAGE_TAG=${COMMIT_HASH:=latest}
+  
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Building the Docker images...
+      - for service in services/*; do
+          if [ -d "$service" ]; then
+            service_name=$(basename $service);
+            echo Building $service_name;
+            docker build -t $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$service_name:$IMAGE_TAG -t $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$service_name:latest $service;
+          fi
+        done
+  
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Pushing the Docker images...
+      - for service in services/*; do
+          if [ -d "$service" ]; then
+            service_name=$(basename $service);
+            echo Pushing $service_name;
+            docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$service_name:$IMAGE_TAG;
+            docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$service_name:latest;
+          fi
+        done
+      - echo Writing task definition files...
+      - aws ecs describe-task-definition --task-definition microservices-task --query taskDefinition > task-definition.json
+      - envsubst < appspec-template.yml > appspec.yml
+
+artifacts:
+  files:
+    - appspec.yml
+    - task-definition.json
